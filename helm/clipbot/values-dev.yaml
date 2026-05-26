@@ -4,7 +4,9 @@
 # Redis: próprio
 
 postgres:
-  enabled: false  # usa clipbot-postgres.clipbot.svc.cluster.local/clipbot_dev via DATABASE_URL no secret
+  enabled: true
+  storage: 5Gi
+  storageClass: oci-bv
 
 minio:
   enabled: true
