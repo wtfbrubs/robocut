@@ -9,6 +9,6 @@ RUN uv pip install --system --no-cache /shared
 COPY services/watcher/pyproject.toml .
 COPY services/watcher/src ./src
 COPY config ./config
-RUN uv pip install --system --no-cache httpx yt-dlp pyyaml redis pydantic tenacity structlog
+RUN uv pip install --system --no-cache -e .
 ENV PYTHONPATH=/app
 CMD ["python", "-m", "src.main"]
