@@ -204,7 +204,7 @@ jobs:
             --namespace ${{ steps.config.outputs.namespace }} \
             --values ${{ steps.config.outputs.values }} \
             --set images.tag=${{ needs.build.outputs.tag }} \
-            --wait --timeout 8m
+            --wait --timeout 12m
 
       - name: Rollout status
         run: |

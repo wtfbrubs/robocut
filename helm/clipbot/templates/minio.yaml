@@ -9,6 +9,8 @@ metadata:
     {{- include "clipbot.labels" . | nindent 4 }}
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: clipbot-minio
