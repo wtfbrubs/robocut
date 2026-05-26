@@ -8,10 +8,8 @@ postgres:
 
 minio:
   enabled: true
-  storage: 10Gi  # menor em dev
-
-clipWorker:
-  replicas: 1  # 1 worker em dev
+  storage: 10Gi
+  storageClass: oci-bv
 
 watcher:
   resources:

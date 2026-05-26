@@ -190,8 +190,7 @@ jobs:
             -n ${{ steps.config.outputs.namespace }} \
             --dry-run=client -o yaml | kubectl apply -f -
 
-      - name: MinIO secret (prod only)
-        if: steps.config.outputs.is_prod == 'true'
+      - name: MinIO secret
         run: |
           kubectl create secret generic clipbot-minio-secret \
             --from-literal=MINIO_ROOT_USER="${{ secrets.CLIPBOT_S3_ACCESS_KEY }}" \
