@@ -34,6 +34,8 @@ async def scheduled_clipper(redis: aioredis.Redis, event: StreamStarted) -> None
             end_ts=elapsed,
             score=0.6,
             reason="scheduled",
+            streamer_name=event.streamer_name,
+            hashtags=event.hashtags,
         )
         await publish(redis, QUEUE_CLIP_CANDIDATE, candidate)
         log.info(

@@ -169,6 +169,7 @@ jobs:
             --from-literal=DATABASE_URL="$DB_URL" \
             --from-literal=S3_ACCESS_KEY="${{ secrets.CLIPBOT_S3_ACCESS_KEY }}" \
             --from-literal=S3_SECRET_KEY="${{ secrets.CLIPBOT_S3_SECRET_KEY }}" \
+            --from-literal=NVIDIA_API_KEY="${{ secrets.NVIDIA_API_KEY }}" \
             -n ${{ steps.config.outputs.namespace }} \
             --dry-run=client -o yaml | kubectl apply -f -
 

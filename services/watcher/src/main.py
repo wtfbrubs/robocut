@@ -12,6 +12,7 @@ from clipbot_shared.queue import publish, QUEUE_STREAM_STARTED, QUEUE_STREAM_END
 from .twitch import TwitchWatcher
 from .youtube import YouTubeWatcher
 from .kick import KickWatcher
+from .hashtags import generate_hashtags
 
 log = get_logger("watcher")
 
@@ -55,13 +56,20 @@ async def watch_channel(redis: aioredis.Redis, channel: dict, live_sessions: dic
         session_id = str(uuid.uuid4())
         live_sessions[channel_key] = session_id
 
+        title = meta.get("title", "")
+        category = meta.get("category", "")
+        base_hashtags = channel.get("hashtags", [])
+        hashtags = await generate_hashtags(title, category, base_hashtags, channel["platform"])
+
         event = StreamStarted(
             channel_id=watcher.channel_id,
             platform=Platform(channel["platform"]),
             stream_url=stream_url,
             streamer_name=meta.get("streamer", watcher.name),
-            title=meta.get("title", ""),
+            title=title,
             session_id=session_id,
+            hashtags=hashtags,
+            category=category,
         )
         await publish(redis, QUEUE_STREAM_STARTED, event)
         log.info(

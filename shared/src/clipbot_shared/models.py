@@ -26,6 +26,8 @@ class StreamStarted(BaseModel):
     streamer_name: str
     title: str
     session_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    hashtags: list[str] = []
+    category: str = ""
 
 
 class StreamEnded(BaseModel):
@@ -47,6 +49,8 @@ class ClipCandidate(BaseModel):
     end_ts: float
     score: float
     reason: Literal["audio_spike", "scene_change", "scheduled"]
+    streamer_name: str = ""
+    hashtags: list[str] = []
 
 
 class ClipReady(BaseModel):

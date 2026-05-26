@@ -34,6 +34,8 @@ async def process(redis: aioredis.Redis, candidate: ClipCandidate, raw: bytes, c
         s3_formatted = await format_vertical(s3_raw, candidate.trace_id)
 
         ch = channel_cfg.get((candidate.platform.value, candidate.channel_id), {})
+        hashtags = candidate.hashtags or ch.get("hashtags", [])
+        streamer_name = candidate.streamer_name or ch.get("name", candidate.channel_id)
 
         ready = ClipReady(
             trace_id=candidate.trace_id,
@@ -43,8 +45,8 @@ async def process(redis: aioredis.Redis, candidate: ClipCandidate, raw: bytes, c
             candidate_id=str(uuid.uuid4()),
             storage_key=s3_formatted,
             duration=candidate.end_ts - candidate.start_ts,
-            streamer_name=ch.get("name", candidate.channel_id),
-            hashtags=ch.get("hashtags", []),
+            streamer_name=streamer_name,
+            hashtags=hashtags,
         )
         await publish(redis, QUEUE_CLIP_READY, ready)
         log.info("clip_ready", trace_id=candidate.trace_id, storage_key=s3_formatted)
