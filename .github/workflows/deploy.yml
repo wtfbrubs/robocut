@@ -3,6 +3,11 @@ name: Build & Deploy
 on:
   push:
     branches: [main, dev/**]
+  workflow_dispatch:
+    inputs:
+      branch_override:
+        description: "Branch para deploy (deixe vazio para usar a branch atual)"
+        required: false
 
 env:
   OCIR_BASE: ${{ secrets.OCIR_REGION }}.ocir.io/${{ secrets.OCIR_NAMESPACE }}
