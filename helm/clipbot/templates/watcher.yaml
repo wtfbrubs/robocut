@@ -35,6 +35,9 @@ spec:
           volumeMounts:
             - name: channels
               mountPath: /app/config
+            - name: ytdlp-oauth
+              mountPath: /root/.config/yt-dlp
+              readOnly: true
           livenessProbe:
             exec:
               command: ["python", "-c", "import sys; sys.exit(0)"]
@@ -50,3 +53,7 @@ spec:
         - name: channels
           configMap:
             name: clipbot-channels
+        - name: ytdlp-oauth
+          secret:
+            secretName: clipbot-ytdlp-oauth
+            optional: true

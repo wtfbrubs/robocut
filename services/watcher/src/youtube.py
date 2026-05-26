@@ -8,9 +8,14 @@ class YouTubeWatcher(BaseWatcher):
         # slug here is the YouTube channel_id (UCxxxxxxx)
         self._channel_url = f"https://www.youtube.com/channel/{slug}/live"
 
+    @staticmethod
+    def _ytdlp_base() -> list[str]:
+        return ["yt-dlp", "--username", "oauth2", "--password", ""]
+
     async def is_live(self) -> bool:
         proc = await asyncio.create_subprocess_exec(
-            "yt-dlp", "--skip-download", "--print", "is_live",
+            *self._ytdlp_base(),
+            "--skip-download", "--print", "is_live",
             "--no-warnings", "--quiet", self._channel_url,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
@@ -24,7 +29,8 @@ class YouTubeWatcher(BaseWatcher):
 
     async def get_stream_url(self) -> str:
         proc = await asyncio.create_subprocess_exec(
-            "yt-dlp", "--get-url", "--no-warnings", self._channel_url,
+            *self._ytdlp_base(),
+            "--get-url", "--no-warnings", self._channel_url,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
@@ -33,7 +39,8 @@ class YouTubeWatcher(BaseWatcher):
 
     async def get_metadata(self) -> dict:
         proc = await asyncio.create_subprocess_exec(
-            "yt-dlp", "--skip-download",
+            *self._ytdlp_base(),
+            "--skip-download",
             "--print", "title",
             "--print", "uploader",
             "--no-warnings", "--quiet", self._channel_url,
