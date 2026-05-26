@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: detector
+  namespace: clipbot
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: detector
+  template:
+    metadata:
+      labels:
+        app: detector
+    spec:
+      priorityClassName: clipbot-critical
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: clipbot/role
+                    operator: In
+                    values: ["general"]
+      containers:
+        - name: detector
+          image: ghcr.io/seu-usuario/irl-clip-detector:latest
+          imagePullPolicy: Always
+          envFrom:
+            - configMapRef:
+                name: clipbot-config
+            - secretRef:
+                name: clipbot-secrets
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "512Mi"
+            limits:
+              cpu: "600m"
+              memory: "1Gi"
+          livenessProbe:
+            exec:
+              command: ["python", "-c", "import sys; sys.exit(0)"]
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command: ["python", "-c", "import sys; sys.exit(0)"]
+            initialDelaySeconds: 10
+            periodSeconds: 15

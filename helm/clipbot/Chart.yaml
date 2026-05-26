@@ -1,0 +1,6 @@
+apiVersion: v2
+name: clipbot
+description: IRL clip bot — monitora lives e faz upload automático no TikTok
+type: application
+version: 0.1.0
+appVersion: "latest"

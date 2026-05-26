@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: clipbot-detector
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: clipbot-detector
+    {{- include "clipbot.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: clipbot-detector
+  template:
+    metadata:
+      labels:
+        app: clipbot-detector
+    spec:
+      priorityClassName: clipbot-critical
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+      imagePullSecrets:
+        - name: ocir-secret
+      containers:
+        - name: detector
+          image: "{{ .Values.images.detector }}:{{ .Values.images.tag }}"
+          imagePullPolicy: Always
+          envFrom:
+            - configMapRef:
+                name: clipbot-config
+            - secretRef:
+                name: clipbot-secrets
+          resources:
+            {{- toYaml .Values.detector.resources | nindent 12 }}
+          livenessProbe:
+            exec:
+              command: ["python", "-c", "import sys; sys.exit(0)"]
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command: ["python", "-c", "import sys; sys.exit(0)"]
+            initialDelaySeconds: 10
+            periodSeconds: 15

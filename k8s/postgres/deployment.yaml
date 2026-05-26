@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: clipbot
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      priorityClassName: clipbot-critical
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: clipbot/role
+                    operator: In
+                    values: ["general"]
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              value: clipbot
+            - name: POSTGRES_USER
+              value: clipbot
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: clipbot-secrets
+                  key: POSTGRES_PASSWORD
+          resources:
+            requests:
+              cpu: "150m"
+              memory: "512Mi"
+            limits:
+              cpu: "400m"
+              memory: "1Gi"
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "clipbot"]
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "clipbot"]
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: postgres-data
+          persistentVolumeClaim:
+            claimName: postgres-pvc

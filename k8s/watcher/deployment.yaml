@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: watcher
+  namespace: clipbot
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: watcher
+  template:
+    metadata:
+      labels:
+        app: watcher
+    spec:
+      priorityClassName: clipbot-critical
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: clipbot/role
+                    operator: In
+                    values: ["general"]
+      containers:
+        - name: watcher
+          image: ghcr.io/seu-usuario/irl-clip-watcher:latest
+          imagePullPolicy: Always
+          envFrom:
+            - configMapRef:
+                name: clipbot-config
+            - secretRef:
+                name: clipbot-secrets
+          resources:
+            requests:
+              cpu: "150m"
+              memory: "384Mi"
+            limits:
+              cpu: "400m"
+              memory: "768Mi"
+          volumeMounts:
+            - name: config
+              mountPath: /app/config
+          livenessProbe:
+            exec:
+              command: ["python", "-c", "import sys; sys.exit(0)"]
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command: ["python", "-c", "import sys; sys.exit(0)"]
+            initialDelaySeconds: 10
+            periodSeconds: 15
+      volumes:
+        - name: config
+          configMap:
+            name: clipbot-channels

@@ -1,0 +1,10 @@
+.env.dev
+*.pyc
+__pycache__/
+.venv/
+dist/
+*.egg-info/
+.pytest_cache/
+*.mp4
+*.ts
+*.log

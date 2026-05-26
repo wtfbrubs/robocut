@@ -1,0 +1,94 @@
+{{- if .Values.minio.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: clipbot-minio
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: clipbot-minio
+    {{- include "clipbot.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: clipbot-minio
+  template:
+    metadata:
+      labels:
+        app: clipbot-minio
+    spec:
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+      containers:
+        - name: minio
+          image: {{ .Values.minio.image }}
+          args: ["server", "/data", "--console-address", ":9001"]
+          env:
+            - name: MINIO_ROOT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: clipbot-minio-secret
+                  key: MINIO_ROOT_USER
+            - name: MINIO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: clipbot-minio-secret
+                  key: MINIO_ROOT_PASSWORD
+          ports:
+            - containerPort: 9000
+            - containerPort: 9001
+          resources:
+            {{- toYaml .Values.minio.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          livenessProbe:
+            httpGet:
+              path: /minio/health/live
+              port: 9000
+            initialDelaySeconds: 20
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /minio/health/ready
+              port: 9000
+            initialDelaySeconds: 10
+            periodSeconds: 15
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: clipbot-minio-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: clipbot-minio
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "clipbot.labels" . | nindent 4 }}
+spec:
+  selector:
+    app: clipbot-minio
+  ports:
+    - name: api
+      port: 9000
+      targetPort: 9000
+    - name: console
+      port: 9001
+      targetPort: 9001
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: clipbot-minio-pvc
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "clipbot.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: {{ .Values.minio.storageClass }}
+  resources:
+    requests:
+      storage: {{ .Values.minio.storage }}
+{{- end }}

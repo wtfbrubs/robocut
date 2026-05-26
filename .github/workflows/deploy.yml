@@ -1,0 +1,243 @@
+name: Build & Deploy
+
+on:
+  push:
+    branches: [main, dev/**]
+
+env:
+  OCIR_BASE: ${{ secrets.OCIR_REGION }}.ocir.io/${{ secrets.OCIR_NAMESPACE }}
+
+jobs:
+  # ── Build arm64 + push para OCIR ─────────────────────────────────────────
+  build:
+    name: Build & Push
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.value }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Login to OCIR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.OCIR_REGION }}.ocir.io
+          username: ${{ secrets.OCIR_USERNAME }}
+          password: ${{ secrets.OCIR_TOKEN }}
+
+      - name: Compute tag
+        id: tag
+        run: |
+          SHA=$(echo $GITHUB_SHA | cut -c1-7)
+          if [[ "${{ github.ref_name }}" == "main" ]]; then
+            echo "value=sha-${SHA}" >> $GITHUB_OUTPUT
+          else
+            echo "value=dev-${SHA}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build and push watcher
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: services/watcher/Dockerfile
+          platforms: linux/arm64
+          push: true
+          tags: ${{ env.OCIR_BASE }}/clipbot-watcher:${{ steps.tag.outputs.value }}
+          cache-from: type=gha,scope=watcher
+          cache-to: type=gha,mode=max,scope=watcher
+
+      - name: Build and push detector
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: services/detector/Dockerfile
+          platforms: linux/arm64
+          push: true
+          tags: ${{ env.OCIR_BASE }}/clipbot-detector:${{ steps.tag.outputs.value }}
+          cache-from: type=gha,scope=detector
+          cache-to: type=gha,mode=max,scope=detector
+
+      - name: Build and push clip-worker
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: services/clip-worker/Dockerfile
+          platforms: linux/arm64
+          push: true
+          tags: ${{ env.OCIR_BASE }}/clipbot-clip-worker:${{ steps.tag.outputs.value }}
+          cache-from: type=gha,scope=clip-worker
+          cache-to: type=gha,mode=max,scope=clip-worker
+
+      - name: Build and push uploader
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: services/uploader/Dockerfile
+          platforms: linux/arm64
+          push: true
+          tags: ${{ env.OCIR_BASE }}/clipbot-uploader:${{ steps.tag.outputs.value }}
+          cache-from: type=gha,scope=uploader
+          cache-to: type=gha,mode=max,scope=uploader
+
+      - name: Notify Discord
+        if: failure()
+        continue-on-error: true
+        run: |
+          COMMIT_MSG=$(echo "${{ github.event.head_commit.message }}" | head -1)
+          COMMIT_URL="${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}"
+          curl -s -X POST "${{ secrets.DISCORD_WEBHOOK_URL }}" \
+            -H "Content-Type: application/json" \
+            -d "$(jq -n \
+              --arg desc "[$COMMIT_MSG]($COMMIT_URL)" \
+              --arg branch "${{ github.ref_name }}" \
+              --arg actor "${{ github.actor }}" \
+              --arg url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+              '{embeds:[{title:"❌ Build da imagem falhou — clipbot",description:$desc,color:15158332,fields:[
+                {name:"Branch",value:$branch,inline:true},
+                {name:"Autor",value:$actor,inline:true},
+                {name:"Logs",value:("[Ver na Actions]("+$url+")"),inline:false}
+              ]}]}')"
+
+  # ── Deploy no OKE ─────────────────────────────────────────────────────────
+  deploy:
+    name: Deploy to OKE
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup kubectl
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBECONFIG_B64 }}" | base64 -d > $HOME/.kube/config
+          chmod 600 $HOME/.kube/config
+
+      - name: Install helm
+        run: |
+          curl -sL https://get.helm.sh/helm-v3.17.3-linux-amd64.tar.gz | tar xz -C /tmp
+          sudo mv /tmp/linux-amd64/helm /usr/local/bin/helm
+
+      - name: Resolve deploy config
+        id: config
+        run: |
+          if [[ "${{ github.ref_name }}" == "main" ]]; then
+            echo "namespace=clipbot"              >> $GITHUB_OUTPUT
+            echo "release=clipbot"                >> $GITHUB_OUTPUT
+            echo "values=helm/clipbot/values.yaml" >> $GITHUB_OUTPUT
+            echo "is_prod=true"                   >> $GITHUB_OUTPUT
+            echo "env=prod"                       >> $GITHUB_OUTPUT
+          else
+            echo "namespace=clipbot-dev"               >> $GITHUB_OUTPUT
+            echo "release=clipbot-dev"                 >> $GITHUB_OUTPUT
+            echo "values=helm/clipbot/values-dev.yaml" >> $GITHUB_OUTPUT
+            echo "is_prod=false"                       >> $GITHUB_OUTPUT
+            echo "env=dev"                             >> $GITHUB_OUTPUT
+          fi
+
+      - name: Ensure namespace
+        run: |
+          kubectl create namespace ${{ steps.config.outputs.namespace }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: OCIR pull secret
+        run: |
+          kubectl create secret docker-registry ocir-secret \
+            --docker-server=${{ secrets.OCIR_REGION }}.ocir.io \
+            --docker-username="${{ secrets.OCIR_USERNAME }}" \
+            --docker-password="${{ secrets.OCIR_TOKEN }}" \
+            -n ${{ steps.config.outputs.namespace }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: App secrets
+        run: |
+          DB_URL="${{ secrets.CLIPBOT_DATABASE_URL }}"
+          # dev aponta para o banco clipbot_dev no postgres do namespace clipbot
+          if [[ "${{ steps.config.outputs.is_prod }}" != "true" ]]; then
+            DB_URL=$(echo "$DB_URL" \
+              | sed 's|@clipbot-postgres:|@clipbot-postgres.clipbot.svc.cluster.local:|' \
+              | sed 's|/clipbot?|/clipbot_dev?|' \
+              | sed 's|/clipbot$|/clipbot_dev|')
+          fi
+          kubectl create secret generic clipbot-secrets \
+            --from-literal=TWITCH_CLIENT_ID="${{ secrets.TWITCH_CLIENT_ID }}" \
+            --from-literal=TWITCH_CLIENT_SECRET="${{ secrets.TWITCH_CLIENT_SECRET }}" \
+            --from-literal=TIKTOK_CLIENT_KEY="${{ secrets.TIKTOK_CLIENT_KEY }}" \
+            --from-literal=TIKTOK_CLIENT_SECRET="${{ secrets.TIKTOK_CLIENT_SECRET }}" \
+            --from-literal=TIKTOK_ACCESS_TOKEN_CONTA1="${{ secrets.TIKTOK_ACCESS_TOKEN_CONTA1 }}" \
+            --from-literal=TIKTOK_ACCESS_TOKEN_CONTA2="${{ secrets.TIKTOK_ACCESS_TOKEN_CONTA2 }}" \
+            --from-literal=DATABASE_URL="$DB_URL" \
+            --from-literal=S3_ACCESS_KEY="${{ secrets.CLIPBOT_S3_ACCESS_KEY }}" \
+            --from-literal=S3_SECRET_KEY="${{ secrets.CLIPBOT_S3_SECRET_KEY }}" \
+            -n ${{ steps.config.outputs.namespace }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Postgres secret (prod only)
+        if: steps.config.outputs.is_prod == 'true'
+        run: |
+          kubectl create secret generic clipbot-postgres-secret \
+            --from-literal=POSTGRES_USER="clipbot" \
+            --from-literal=POSTGRES_PASSWORD="${{ secrets.CLIPBOT_POSTGRES_PASSWORD }}" \
+            --from-literal=POSTGRES_DB="clipbot" \
+            -n ${{ steps.config.outputs.namespace }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: MinIO secret (prod only)
+        if: steps.config.outputs.is_prod == 'true'
+        run: |
+          kubectl create secret generic clipbot-minio-secret \
+            --from-literal=MINIO_ROOT_USER="${{ secrets.CLIPBOT_S3_ACCESS_KEY }}" \
+            --from-literal=MINIO_ROOT_PASSWORD="${{ secrets.CLIPBOT_S3_SECRET_KEY }}" \
+            -n ${{ steps.config.outputs.namespace }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Deploy via Helm
+        run: |
+          helm upgrade --install ${{ steps.config.outputs.release }} helm/clipbot \
+            --namespace ${{ steps.config.outputs.namespace }} \
+            --values ${{ steps.config.outputs.values }} \
+            --set images.tag=${{ needs.build.outputs.tag }} \
+            --wait --timeout 8m
+
+      - name: Rollout status
+        run: |
+          NS=${{ steps.config.outputs.namespace }}
+          for svc in watcher detector clip-worker uploader; do
+            kubectl rollout status deployment/clipbot-${svc} -n $NS --timeout=300s
+          done
+
+      - name: Notify Discord
+        if: always()
+        continue-on-error: true
+        run: |
+          STATUS="${{ job.status }}"
+          ENV="${{ steps.config.outputs.env }}"
+          TAG="${{ needs.build.outputs.tag }}"
+          COMMIT_MSG=$(echo "${{ github.event.head_commit.message }}" | head -1)
+          COMMIT_URL="${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}"
+          if [ "$STATUS" = "success" ]; then
+            COLOR=3066993
+            TITLE="✅ Deploy concluído — clipbot ${ENV}"
+          else
+            COLOR=15158332
+            TITLE="❌ Deploy falhou — clipbot ${ENV}"
+          fi
+          curl -s -X POST "${{ secrets.DISCORD_WEBHOOK_URL }}" \
+            -H "Content-Type: application/json" \
+            -d "$(jq -n \
+              --arg title "$TITLE" \
+              --arg desc "[$COMMIT_MSG]($COMMIT_URL)" \
+              --argjson color "$COLOR" \
+              --arg branch "${{ github.ref_name }}" \
+              --arg actor "${{ github.actor }}" \
+              --arg tag "$TAG" \
+              --arg run_url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+              '{embeds:[{title:$title,description:$desc,color:$color,fields:[
+                {name:"Branch",value:$branch,inline:true},
+                {name:"Autor",value:$actor,inline:true},
+                {name:"Imagem",value:$tag,inline:true},
+                {name:"Logs",value:("[Ver na Actions]("+$run_url+")"),inline:false}
+              ]}]}')"

@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: clipbot-clip-worker
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: clipbot-clip-worker
+    {{- include "clipbot.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.clipWorker.replicas }}
+  selector:
+    matchLabels:
+      app: clipbot-clip-worker
+  template:
+    metadata:
+      labels:
+        app: clipbot-clip-worker
+    spec:
+      priorityClassName: clipbot-worker
+      affinity:
+        nodeAffinity:
+          {{- if .Values.clipWorker.requireEncoderAffinity }}
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: clipbot/role
+                    operator: In
+                    values: ["encoder"]
+          {{- else }}
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: clipbot/role
+                    operator: In
+                    values: ["encoder"]
+          {{- end }}
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: clipbot-clip-worker
+                topologyKey: kubernetes.io/hostname
+      imagePullSecrets:
+        - name: ocir-secret
+      containers:
+        - name: clip-worker
+          image: "{{ .Values.images.clipWorker }}:{{ .Values.images.tag }}"
+          imagePullPolicy: Always
+          envFrom:
+            - configMapRef:
+                name: clipbot-config
+            - secretRef:
+                name: clipbot-secrets
+          resources:
+            {{- toYaml .Values.clipWorker.resources | nindent 12 }}
+          volumeMounts:
+            - name: channels
+              mountPath: /app/config
+          livenessProbe:
+            exec:
+              command: ["python", "-c", "import sys; sys.exit(0)"]
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command: ["python", "-c", "import sys; sys.exit(0)"]
+            initialDelaySeconds: 5
+            periodSeconds: 15
+      volumes:
+        - name: channels
+          configMap:
+            name: clipbot-channels

@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: clipbot-uploader
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: clipbot-uploader
+    {{- include "clipbot.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: clipbot-uploader
+  template:
+    metadata:
+      labels:
+        app: clipbot-uploader
+    spec:
+      priorityClassName: clipbot-worker
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+      imagePullSecrets:
+        - name: ocir-secret
+      containers:
+        - name: uploader
+          image: "{{ .Values.images.uploader }}:{{ .Values.images.tag }}"
+          imagePullPolicy: Always
+          envFrom:
+            - configMapRef:
+                name: clipbot-config
+            - secretRef:
+                name: clipbot-secrets
+          resources:
+            {{- toYaml .Values.uploader.resources | nindent 12 }}
+          volumeMounts:
+            - name: channels
+              mountPath: /app/config
+          livenessProbe:
+            exec:
+              command: ["python", "-c", "import sys; sys.exit(0)"]
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command: ["python", "-c", "import sys; sys.exit(0)"]
+            initialDelaySeconds: 5
+            periodSeconds: 15
+      volumes:
+        - name: channels
+          configMap:
+            name: clipbot-channels

@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: uploader
+  namespace: clipbot
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: uploader
+  template:
+    metadata:
+      labels:
+        app: uploader
+    spec:
+      priorityClassName: clipbot-worker
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: clipbot/role
+                    operator: In
+                    values: ["general"]
+      containers:
+        - name: uploader
+          image: ghcr.io/seu-usuario/irl-clip-uploader:latest
+          imagePullPolicy: Always
+          envFrom:
+            - configMapRef:
+                name: clipbot-config
+            - secretRef:
+                name: clipbot-secrets
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "200m"
+              memory: "256Mi"
+          volumeMounts:
+            - name: config
+              mountPath: /app/config
+          livenessProbe:
+            exec:
+              command: ["python", "-c", "import sys; sys.exit(0)"]
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command: ["python", "-c", "import sys; sys.exit(0)"]
+            initialDelaySeconds: 5
+            periodSeconds: 15
+      volumes:
+        - name: config
+          configMap:
+            name: clipbot-channels

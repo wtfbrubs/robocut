@@ -1,0 +1,63 @@
+# Dev overrides — merge sobre values.yaml
+# Banco: clipbot_dev no postgres do namespace clipbot (sem StatefulSet próprio)
+# MinIO: próprio (dados de dev isolados)
+# Redis: próprio
+
+postgres:
+  enabled: false  # usa clipbot-postgres.clipbot.svc.cluster.local/clipbot_dev via DATABASE_URL no secret
+
+minio:
+  enabled: true
+  storage: 10Gi  # menor em dev
+
+clipWorker:
+  replicas: 1  # 1 worker em dev
+
+watcher:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 250m
+      memory: 512Mi
+
+detector:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 300m
+      memory: 512Mi
+
+clipWorker:
+  replicas: 1
+  requireEncoderAffinity: false
+  resources:
+    requests:
+      cpu: 300m
+      memory: 512Mi
+    limits:
+      cpu: 600m
+      memory: 1Gi
+
+uploader:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 150m
+      memory: 192Mi
+
+channels: |
+  channels:
+    - platform: twitch
+      slug: nomeDoCanalTwitch
+      channel_id: nomeDoCanalTwitch
+      name: "Canal Dev"
+      active: true
+      tiktok_account: conta_tiktok_1
+      hashtags: ["#dev", "#test"]
+      clip_min_score: 0.3

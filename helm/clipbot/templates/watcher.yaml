@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: clipbot-watcher
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: clipbot-watcher
+    {{- include "clipbot.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: clipbot-watcher
+  template:
+    metadata:
+      labels:
+        app: clipbot-watcher
+    spec:
+      priorityClassName: clipbot-critical
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+      imagePullSecrets:
+        - name: ocir-secret
+      containers:
+        - name: watcher
+          image: "{{ .Values.images.watcher }}:{{ .Values.images.tag }}"
+          imagePullPolicy: Always
+          envFrom:
+            - configMapRef:
+                name: clipbot-config
+            - secretRef:
+                name: clipbot-secrets
+          resources:
+            {{- toYaml .Values.watcher.resources | nindent 12 }}
+          volumeMounts:
+            - name: channels
+              mountPath: /app/config
+          livenessProbe:
+            exec:
+              command: ["python", "-c", "import sys; sys.exit(0)"]
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command: ["python", "-c", "import sys; sys.exit(0)"]
+            initialDelaySeconds: 10
+            periodSeconds: 15
+      volumes:
+        - name: channels
+          configMap:
+            name: clipbot-channels

@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: clip-worker
+  namespace: clipbot
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: clip-worker
+  template:
+    metadata:
+      labels:
+        app: clip-worker
+    spec:
+      priorityClassName: clipbot-worker
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: clipbot/role
+                    operator: In
+                    values: ["encoder"]
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app: clip-worker
+              topologyKey: kubernetes.io/hostname
+      containers:
+        - name: clip-worker
+          image: ghcr.io/seu-usuario/irl-clip-worker:latest
+          imagePullPolicy: Always
+          envFrom:
+            - configMapRef:
+                name: clipbot-config
+            - secretRef:
+                name: clipbot-secrets
+          resources:
+            requests:
+              cpu: "600m"
+              memory: "768Mi"
+            limits:
+              cpu: "950m"
+              memory: "1536Mi"
+          volumeMounts:
+            - name: config
+              mountPath: /app/config
+          livenessProbe:
+            exec:
+              command: ["python", "-c", "import sys; sys.exit(0)"]
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command: ["python", "-c", "import sys; sys.exit(0)"]
+            initialDelaySeconds: 5
+            periodSeconds: 15
+      volumes:
+        - name: config
+          configMap:
+            name: clipbot-channels

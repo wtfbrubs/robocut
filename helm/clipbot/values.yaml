@@ -1,0 +1,109 @@
+images:
+  tag: ""  # definido pelo pipeline via --set images.tag=sha-XXXXXXX
+  pullSecret: ocir-secret
+  watcher:    sa-vinhedo-1.ocir.io/grtqjxl7smp5/clipbot-watcher
+  detector:   sa-vinhedo-1.ocir.io/grtqjxl7smp5/clipbot-detector
+  clipWorker: sa-vinhedo-1.ocir.io/grtqjxl7smp5/clipbot-clip-worker
+  uploader:   sa-vinhedo-1.ocir.io/grtqjxl7smp5/clipbot-uploader
+
+nodeSelector:
+  kubernetes.io/arch: arm64
+
+# Variáveis não-sensíveis (ConfigMap)
+config:
+  logLevel: "INFO"
+  clipMaxDuration: "60"
+  clipMinDuration: "10"
+  clipMinScore: "0.55"
+  enableCaptions: "false"
+  clipsBucket: "clipbot-clips"
+  s3EndpointUrl: "http://clipbot-minio:9000"
+  detectorWindowSeconds: "600"
+  pollIntervalSeconds: "45"
+  redisUrl: "redis://clipbot-redis:6379/0"
+
+# Conteúdo do channels.yaml — substituir pelos canais reais antes do primeiro deploy
+channels: |
+  channels:
+    - platform: twitch
+      slug: nomeDoCanalTwitch
+      channel_id: nomeDoCanalTwitch
+      name: "Nome do Streamer"
+      active: true
+      tiktok_account: conta_tiktok_1
+      hashtags: ["#twitch", "#IRL", "#live", "#clip"]
+      clip_min_score: 0.6
+
+watcher:
+  resources:
+    requests:
+      cpu: 150m
+      memory: 384Mi
+    limits:
+      cpu: 400m
+      memory: 768Mi
+
+detector:
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: 600m
+      memory: 1Gi
+
+clipWorker:
+  replicas: 2
+  requireEncoderAffinity: true
+  resources:
+    requests:
+      cpu: 600m
+      memory: 768Mi
+    limits:
+      cpu: 950m
+      memory: 1536Mi
+
+uploader:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+postgres:
+  enabled: true
+  image: docker.io/library/postgres:16-alpine
+  storage: 10Gi
+  storageClass: oci-bv
+  resources:
+    requests:
+      cpu: 150m
+      memory: 512Mi
+    limits:
+      cpu: 400m
+      memory: 1Gi
+
+redis:
+  image: redis:7-alpine
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 300m
+      memory: 256Mi
+
+minio:
+  enabled: true
+  image: minio/minio:latest
+  storage: 50Gi
+  storageClass: oci-bv
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 300m
+      memory: 512Mi

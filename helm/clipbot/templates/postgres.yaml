@@ -1,0 +1,91 @@
+{{- if .Values.postgres.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: clipbot-postgres
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "clipbot.labels" . | nindent 4 }}
+spec:
+  selector:
+    app: clipbot-postgres
+  ports:
+    - port: 5432
+      targetPort: 5432
+  type: ClusterIP
+  clusterIP: None
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: clipbot-postgres
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: clipbot-postgres
+    {{- include "clipbot.labels" . | nindent 4 }}
+spec:
+  serviceName: clipbot-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: clipbot-postgres
+  template:
+    metadata:
+      labels:
+        app: clipbot-postgres
+    spec:
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+      containers:
+        - name: postgres
+          image: {{ .Values.postgres.image }}
+          ports:
+            - containerPort: 5432
+          env:
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          envFrom:
+            - secretRef:
+                name: clipbot-postgres-secret
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+            - name: init-schema
+              mountPath: /docker-entrypoint-initdb.d
+          resources:
+            {{- toYaml .Values.postgres.resources | nindent 12 }}
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "clipbot", "-d", "clipbot"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "clipbot", "-d", "clipbot"]
+            initialDelaySeconds: 30
+            periodSeconds: 30
+      volumes:
+        - name: init-schema
+          configMap:
+            name: clipbot-postgres-schema
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: {{ .Values.postgres.storageClass }}
+        resources:
+          requests:
+            storage: {{ .Values.postgres.storage }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: clipbot-postgres-schema
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "clipbot.labels" . | nindent 4 }}
+data:
+  schema.sql: |
+    {{- .Files.Get "files/schema.sql" | nindent 4 }}
+{{- end }}

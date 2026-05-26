@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: clipbot-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "clipbot.labels" . | nindent 4 }}
+data:
+  LOG_LEVEL: {{ .Values.config.logLevel | quote }}
+  CLIP_MAX_DURATION: {{ .Values.config.clipMaxDuration | quote }}
+  CLIP_MIN_DURATION: {{ .Values.config.clipMinDuration | quote }}
+  CLIP_MIN_SCORE: {{ .Values.config.clipMinScore | quote }}
+  ENABLE_CAPTIONS: {{ .Values.config.enableCaptions | quote }}
+  CLIPS_BUCKET: {{ .Values.config.clipsBucket | quote }}
+  S3_ENDPOINT_URL: {{ .Values.config.s3EndpointUrl | quote }}
+  DETECTOR_WINDOW_SECONDS: {{ .Values.config.detectorWindowSeconds | quote }}
+  POLL_INTERVAL_SECONDS: {{ .Values.config.pollIntervalSeconds | quote }}
+  REDIS_URL: {{ .Values.config.redisUrl | quote }}
+  CHANNELS_FILE: "/app/config/channels.yaml"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: clipbot-channels
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "clipbot.labels" . | nindent 4 }}
+data:
+  channels.yaml: |
+    {{- .Values.channels | nindent 4 }}
