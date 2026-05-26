@@ -61,3 +61,11 @@ channels: |
       tiktok_account: conta_tiktok_1
       hashtags: ["#twitch", "#IRL", "#live"]
       clip_min_score: 0.3
+    - platform: kick
+      slug: matteafrodisiaco
+      channel_id: matteafrodisiaco
+      name: "Mattea Frodisiaco"
+      active: true
+      tiktok_account: conta_tiktok_1
+      hashtags: ["#kick", "#IRL", "#live"]
+      clip_min_score: 0.3
