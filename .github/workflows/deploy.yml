@@ -91,10 +91,13 @@ jobs:
       - name: Notify Discord
         if: failure()
         continue-on-error: true
+        env:
+          WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: |
+          [ -z "$WEBHOOK" ] && echo "DISCORD_WEBHOOK_URL not set, skipping" && exit 0
           COMMIT_MSG=$(echo "${{ github.event.head_commit.message }}" | head -1)
           COMMIT_URL="${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}"
-          curl -s -X POST "${{ secrets.DISCORD_WEBHOOK_URL }}" \
+          curl -s -X POST "$WEBHOOK" \
             -H "Content-Type: application/json" \
             -d "$(jq -n \
               --arg desc "[$COMMIT_MSG]($COMMIT_URL)" \
@@ -208,7 +211,10 @@ jobs:
       - name: Notify Discord
         if: always()
         continue-on-error: true
+        env:
+          WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: |
+          [ -z "$WEBHOOK" ] && echo "DISCORD_WEBHOOK_URL not set, skipping" && exit 0
           STATUS="${{ job.status }}"
           ENV="${{ steps.config.outputs.env }}"
           TAG="${{ needs.build.outputs.tag }}"
@@ -221,7 +227,7 @@ jobs:
             COLOR=15158332
             TITLE="❌ Deploy falhou — clipbot ${ENV}"
           fi
-          curl -s -X POST "${{ secrets.DISCORD_WEBHOOK_URL }}" \
+          curl -s -X POST "$WEBHOOK" \
             -H "Content-Type: application/json" \
             -d "$(jq -n \
               --arg title "$TITLE" \
