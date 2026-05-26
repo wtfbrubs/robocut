@@ -1,10 +1,10 @@
 images:
   tag: ""  # definido pelo pipeline via --set images.tag=sha-XXXXXXX
   pullSecret: ocir-secret
-  watcher:    sa-vinhedo-1.ocir.io/grtqjxl7smp5/clipbot-watcher
-  detector:   sa-vinhedo-1.ocir.io/grtqjxl7smp5/clipbot-detector
-  clipWorker: sa-vinhedo-1.ocir.io/grtqjxl7smp5/clipbot-clip-worker
-  uploader:   sa-vinhedo-1.ocir.io/grtqjxl7smp5/clipbot-uploader
+  watcher:    vcp.ocir.io/grtqjxl7smp5/clipbot-watcher
+  detector:   vcp.ocir.io/grtqjxl7smp5/clipbot-detector
+  clipWorker: vcp.ocir.io/grtqjxl7smp5/clipbot-clip-worker
+  uploader:   vcp.ocir.io/grtqjxl7smp5/clipbot-uploader
 
 nodeSelector:
   kubernetes.io/arch: arm64
@@ -86,7 +86,7 @@ postgres:
       memory: 1Gi
 
 redis:
-  image: redis:7-alpine
+  image: docker.io/library/redis:7-alpine
   resources:
     requests:
       cpu: 100m
@@ -97,7 +97,7 @@ redis:
 
 minio:
   enabled: true
-  image: minio/minio:latest
+  image: docker.io/minio/minio:latest
   storage: 50Gi
   storageClass: oci-bv
   resources:
