@@ -1,17 +1,26 @@
 import asyncio
-import httpx
+from curl_cffi.requests import AsyncSession
 from .base import BaseWatcher
 
-KICK_API = "https://kick.com/api/v1/channels"
+KICK_API = "https://kick.com/api/v2/channels"
+_HEADERS = {
+    "Accept": "application/json",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Referer": "https://kick.com/",
+}
+
+
+async def _kick_get(path: str) -> dict:
+    async with AsyncSession(impersonate="chrome") as s:
+        resp = await s.get(f"{KICK_API}/{path}", headers=_HEADERS, timeout=15)
+        resp.raise_for_status()
+        return resp.json()
 
 
 class KickWatcher(BaseWatcher):
     async def is_live(self) -> bool:
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.get(f"{KICK_API}/{self.slug}")
-            resp.raise_for_status()
-            data = resp.json()
-            return data.get("livestream") is not None
+        data = await _kick_get(f"{self.slug}/livestream")
+        return data.get("data") is not None
 
     async def get_stream_url(self) -> str:
         proc = await asyncio.create_subprocess_exec(
@@ -24,14 +33,11 @@ class KickWatcher(BaseWatcher):
         return stdout.decode().strip().splitlines()[0]
 
     async def get_metadata(self) -> dict:
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.get(f"{KICK_API}/{self.slug}")
-            resp.raise_for_status()
-            data = resp.json()
-            ls = data.get("livestream") or {}
-            return {
-                "title": ls.get("session_title", ""),
-                "streamer": data.get("user", {}).get("username", self.name),
-                "category": ls.get("categories", [{}])[0].get("name", "") if ls.get("categories") else "",
-                "thumbnail": ls.get("thumbnail", {}).get("url", "") if ls.get("thumbnail") else "",
-            }
+        data = await _kick_get(f"{self.slug}/livestream")
+        ls = data.get("data") or {}
+        return {
+            "title": ls.get("session_title", ""),
+            "streamer": ls.get("channel", {}).get("slug", self.name),
+            "category": ls.get("categories", [{}])[0].get("name", "") if ls.get("categories") else "",
+            "thumbnail": ls.get("thumbnail", {}).get("url", "") if ls.get("thumbnail") else "",
+        }

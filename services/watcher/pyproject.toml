@@ -5,6 +5,7 @@ requires-python = ">=3.11"
 dependencies = [
     "clipbot-shared",
     "httpx>=0.27",
+    "curl-cffi>=0.7",
     "openai>=1.0",
     "yt-dlp>=2024.0",
     "redis>=5.0",
