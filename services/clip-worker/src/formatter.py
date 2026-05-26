@@ -10,10 +10,10 @@ async def format_vertical(s3_raw_key: str, trace_id: str) -> str:
         await download(s3_raw_key, local_in)
 
         vf = (
-            "[0:v]scale=1920:1080,boxblur=20:5[bg];"
-            "[0:v]scale=-1:1920[fg];"
+            "[0:v]scale=960:540,boxblur=20:5[bg];"
+            "[0:v]scale=-1:960[fg];"
             "[bg][fg]overlay=(W-w)/2:(H-h)/2[v];"
-            "[v]scale=1080:1920[out]"
+            "[v]scale=540:960[out]"
         )
         cmd = [
             "ffmpeg", "-threads", "1", "-loglevel", "warning",
@@ -30,7 +30,7 @@ async def format_vertical(s3_raw_key: str, trace_id: str) -> str:
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        _, stderr = await asyncio.wait_for(proc.communicate(), timeout=180)
+        _, stderr = await asyncio.wait_for(proc.communicate(), timeout=600)
         if proc.returncode != 0 or not local_out.exists() or local_out.stat().st_size == 0:
             raise RuntimeError(f"ffmpeg format failed: {stderr.decode()}")
 
