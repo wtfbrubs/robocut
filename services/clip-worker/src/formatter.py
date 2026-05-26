@@ -10,10 +10,10 @@ async def format_vertical(s3_raw_key: str, trace_id: str) -> str:
         await download(s3_raw_key, local_in)
 
         vf = (
-            "[0:v]scale=960:540,boxblur=20:5[bg];"
-            "[0:v]scale=-1:960[fg];"
-            "[bg][fg]overlay=(W-w)/2:(H-h)/2[v];"
-            "[v]scale=540:960[out]"
+            "[0:v]scale=540:960:force_original_aspect_ratio=increase,"
+            "crop=540:960,boxblur=20:5[bg];"
+            "[0:v]scale=540:-2[fg];"
+            "[bg][fg]overlay=(W-w)/2:(H-h)/2[out]"
         )
         cmd = [
             "ffmpeg", "-threads", "1", "-loglevel", "warning",
