@@ -40,7 +40,7 @@ async def watch_channel(redis: aioredis.Redis, channel: dict, live_sessions: dic
     try:
         is_live = await watcher.is_live()
     except Exception as exc:
-        log.warning("is_live_check_failed", channel=watcher.name, error=str(exc))
+        log.warning("is_live_check_failed", channel=watcher.name, error=repr(exc))
         return
 
     was_live = channel_key in live_sessions
