@@ -13,6 +13,8 @@ _HEADERS = {
 async def _kick_get(path: str) -> dict:
     async with AsyncSession(impersonate="chrome") as s:
         resp = await s.get(f"{KICK_API}/{path}", headers=_HEADERS, timeout=15)
+        if resp.status_code == 404:
+            return {"data": None}
         resp.raise_for_status()
         return resp.json()
 
@@ -35,9 +37,10 @@ class KickWatcher(BaseWatcher):
     async def get_metadata(self) -> dict:
         data = await _kick_get(f"{self.slug}/livestream")
         ls = data.get("data") or {}
+        categories = ls.get("categories") or []
         return {
             "title": ls.get("session_title", ""),
             "streamer": ls.get("channel", {}).get("slug", self.name),
-            "category": ls.get("categories", [{}])[0].get("name", "") if ls.get("categories") else "",
+            "category": categories[0].get("name", "") if categories else "",
             "thumbnail": ls.get("thumbnail", {}).get("url", "") if ls.get("thumbnail") else "",
         }
